@@ -1,0 +1,27 @@
+The Steam Game Comparator (SGC)
+**Licensed under the GNU GPL v2**
+
+Authored by Brinsky (GitHub username)
+
+
+Description:
+The SGC finds the overlap between the game collections of multiple Steam users. It also creates a nice chart to display this overlap.
+
+
+Requirements:
+The SGC is implemented in Python 3 and requires the external bs4 (Beautiful Soup 4) and httplib2 modules.
+
+
+Notes:
+As my first serious python program, the SGC is fairly messy. Although it serves its purpose, it could benefit from many additional features:
+
+*Features that would be nice*
+-Sorting of the games before outputting
+-Outputting to a text file
+-Handling httplib2 exceptions cleanly
+-Somehow allow login to the Steam Community (in order to access certain private profiles of friends)
+-Allow for only mutliplayer games to be listed (possibly by using the appids to find and parse each game's store page)
+-Output a different chart when only two players are compared (all games in common show Xs, so there is little added benefit to the current chart)
+-General code cleanup and optimization
+
+Maybe I will add some of these features, but I will probably not implement all of them. Even cooler would be if YOU implemented them (or other features that you desire). I would love to hear about it if you do.
