@@ -284,8 +284,8 @@ def find_player_data(num_players):
             games = get_player_games(url_chunk)
         except PrivateProfile:
             # Skip the profile or exit if the profile is private
-            if attempt_skip(num_players, skipped, "The profile for" + nick +
-                "is private."):
+            if attempt_skip(num_players, skipped, "The profile for " + nick +
+                " is private."):
 
                 skipped += 1
                 continue
