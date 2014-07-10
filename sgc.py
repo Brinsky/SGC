@@ -191,12 +191,14 @@ def create_chart(shared_games, player_data):
 
     names_out = make_length("Game Title", TITLE_LENGTH) + ' +'
     separator_out = ('-' * (TITLE_LENGTH + 1)) + '+'
-
+    blank_out = (' ' * (TITLE_LENGTH + 1)) + '|'
+    
     for player in player_data:
         names_out += '  '
         names_out += make_length(player['nick'], NAME_LENGTH)
         names_out += ' +'
         separator_out += ('-' * (NAME_LENGTH + 3)) + '+'
+        blank_out += (' ' * (NAME_LENGTH + 3)) + '|'
 
     print(names_out, file=f)
     print(separator_out, file=f)
@@ -212,11 +214,20 @@ def create_chart(shared_games, player_data):
                 game_out += ' '
             game_out += (' ' * 5) + '|'
 
+        print(blank_out, file=f)
         print(game_out, file=f)
+        print(blank_out, file=f)
 
     print(separator_out, file=f)
 
-    print("Fun fact: This group of players owns a total of " +
+    # Bonus fun facts section
+    print("Fun facts:", file=f)
+
+    for player in player_data:
+        print(player['nick'] + " owns " + str(len(player['games'])) +
+            " total games.", file=f)
+
+    print("This group of players owns a total of " +
         str(len(master_games)) + " unique games!", file=f)
 
     f.close()
@@ -315,7 +326,7 @@ def find_player_data(num_players):
                 sys.exit()
 
         player_data.append( {'nick': nick, 'games': games } )
-        print("Fun fact: " + nick + ' owns ' + str(len(games)) + ' games!')
+        print('Successfully accessed profile for ' + nick + '.')
 
     return player_data
 
