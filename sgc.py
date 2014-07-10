@@ -1,33 +1,34 @@
 """This is the Steam Game Comparator (SGC), it finds the overlap between
    the game collections of multiple Steam users."""
 
-import sys
+# Third-party/external imports
 import httplib2
-import json
 from bs4 import BeautifulSoup
+
+import sys
+import json
+import time
+import datetime
 
 
 class MultipleProfileHits(Exception):
     pass
 
-
 class PrivateProfile(Exception):
     pass
 
-
 class MissingProfile(Exception):
     pass
-
 
 # The master games dictionary which will contain ever game owned by any
 # player. The dictionary also associates appids with game titles, allowing
 # game lists for players to contain only appids.
 master_games = {}
 
-
 MAX_PLAYERS = 10
 NAME_LENGTH = 8
 TITLE_LENGTH = 25
+FILE_PATH = "output/"
 
 
 def get_html(h, url):
@@ -174,9 +175,19 @@ def make_length(string, length):
     else:
         return string + ( (length - len(string)) * ' ')
 
+
+def get_formatted_time():
+    """Returns a timestamp formatted to be a filename-friendly string"""
+
+    return datetime.datetime.fromtimestamp(time.time()).strftime(
+        '%Y-%m-%d_%H-%M-%S')
+
+
 def create_chart(shared_games, player_data):
     """Outputs a chart indicating which games are shared among which
     players"""
+
+    f = open(FILE_PATH + get_formatted_time() + '.txt', 'w')
 
     names_out = make_length("Game Title", TITLE_LENGTH) + ' +'
     separator_out = ('-' * (TITLE_LENGTH + 1)) + '+'
@@ -187,8 +198,8 @@ def create_chart(shared_games, player_data):
         names_out += ' +'
         separator_out += ('-' * (NAME_LENGTH + 3)) + '+'
 
-    print(names_out)
-    print(separator_out)
+    print(names_out, file=f)
+    print(separator_out, file=f)
 
     for appid in shared_games:
 
@@ -201,12 +212,14 @@ def create_chart(shared_games, player_data):
                 game_out += ' '
             game_out += (' ' * 5) + '|'
 
-        print(game_out)
+        print(game_out, file=f)
 
-    print(separator_out)
+    print(separator_out, file=f)
 
     print("Fun fact: This group of players owns a total of " +
-        str(len(master_games)) + " unique games!")
+        str(len(master_games)) + " unique games!", file=f)
+
+    f.close()
 
 
 def find_common_games(player_data):
@@ -325,6 +338,7 @@ def main():
 
         # Format and print out the results
         create_chart(shared_games, player_data)
+        print("Results output to file.")
     else:
         print("No games in common, despite owning " + len(master_games) +
             "games!")
