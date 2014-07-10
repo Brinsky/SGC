@@ -11,14 +11,21 @@ import time
 import datetime
 
 
-class MultipleProfileHits(Exception):
-    pass
-
 class PrivateProfile(Exception):
     pass
 
 class MissingProfile(Exception):
     pass
+
+class MalformedSteamURL(Exception):
+    pass
+
+class FindNameError(Exception):
+    pass
+
+class FindGamesError(Exception):
+    pass
+
 
 # The master games dictionary which will contain ever game owned by any
 # player. The dictionary also associates appids with game titles, allowing
@@ -45,75 +52,55 @@ def get_html(h, url):
     # Return HTML document as bytes
     return content
 
- 
-def get_player_games(partial_url):
-    """Get a set containing the names of every game owned by a player on Steam
 
-    Requires the player username or custom URL segment used in that player's
-    community URL. Example: ...steamcommunity.com/profiles/commun_name/..."""
+def get_player_and_games(url):
+    """Attempts to access Steam Community data and determine a player's name
+    and games list. This attempt is made using the URL of the player's profile
+    page."""
 
-    # A list of dictionaries containing information about possible Steam
-    # URLs. The status element is used to track whether the profile has been
-    # succesfully accesed, is private, or does not exist.
-    possible_urls = [
-          { 'url': "http://steamcommunity.com/profiles/" + partial_url +
-            "/games/?tab=all", 'status': None },
-          { 'url': "http://steamcommunity.com/id/" + partial_url +
-            "/games/?tab=all", 'status': None } ]
+    # Navigate to profile's games page
+    url += '/games/?tab=all'
 
-    num_exist = 0
+    content = get_html(httplib2.Http(), url)
+    soup = BeautifulSoup(content)
 
-    for url_dict in possible_urls:
-        content = get_html(httplib2.Http(), url_dict['url'])
-        soup = BeautifulSoup(content)
+    # If the profile/gameslist is accessed properlu
+    if soup.find('div', class_='games_list'):
+        # Convert HTML contents into a string for further parsing
+        content_str = soup.prettify()
 
-        # If the profile/gameslist is accessed properlu
-        if soup.find('div', class_='games_list'):
-            url_dict['status'] = 'success'
-            num_exist += 1
+        # Get a substring containing the JS definition of 'var personaName'
+        try:
+            js_name = content_str[ content_str.index("personaName"): ]
+            js_name = js_name[ js_name.index('"'):js_name.index(';') ]
+        except ValueError:
+            raise FindNameError()
+        name = json.loads(js_name)
 
-            # What if more than one URL combo works? It shouldn't, throw an exception!
-            if num_exist > 1:
-                raise MultipleProfileHits( str(num_exist) +
-                    " profile/game pages found for the same URL segment. " +
-                    "What the HAY?!?!")
+        # Get a substring containing the JS definition of 'var rgGames'
+        try:
+            js_str = content_str[ content_str.index("rgGames") : ]
+            js_str = js_str[ js_str.index("[") : (js_str.index("]") + 1) ]
+        except ValueError:
+            raise FindGamesError()
+        js_value = json.loads(js_str)
 
-            # An exception will be thrown if more than one url is succesful
-            # so we might as well grab the content from any successful case
-            content_str = soup.prettify()
+        # Store all of the game appids for a player within a set
+        player_games = set()
+        for d in js_value:
+            player_games.add(d['appid'])
+            # Also add the appids to the master dictionary, along with their names
+            master_games[ d['appid'] ] = d['name']
 
-        # If the profile is private
-        elif soup.find('div', class_='profile_private_info'):
-            url_dict['status'] = 'private'
-            num_exist += 1
+        # Return the player's Steam name and games dictionary
+        return (name, player_games)
 
-            # What if more than one URL combo works? It shouldn't, throw an exception!
-            if num_exist > 1:
-                raise MultipleProfileHits( str(num_exist) +
-                    " profile/game pages found for the same URL segment. " +
-                    "What the HAY?!?!")
+    # If the profile is private
+    elif soup.find('div', class_='profile_private_info'):
+        raise PrivateProfile()
 
-            raise PrivateProfile("User profile is private.")
-
-
-    if num_exist == 0:
-        raise MissingProfile("User profile is missing.")
-
-    # Get a substring containing the definition of "var rgGames"
-    js_str = content_str[ content_str.index("rgGames") : ]
-    js_str = js_str[ js_str.index("[") : (js_str.index("]") + 1) ]
-
-    # Convert that value to a valid python list
-    js_value = json.loads(js_str)
-
-    # Store all of the game appids for a player within a set
-    player_games = set()
-    for d in js_value:
-        player_games.add(d['appid'])
-        # Also add the appids to the master dictionary, along with their names
-        master_games[ d['appid'] ] = d['name']
-
-    return player_games
+    else:
+        raise MissingProfile()
 
 
 def handle_input_int(msg, min, max):
@@ -136,36 +123,6 @@ def handle_input_int(msg, min, max):
     return val
 
 
-def handle_input_str(msg, min, max):
-    """Repeats a request until the user inputs a string within a given
-    length."""
-
-    while True:
-        val = input(msg)
-
-        if len(val) < min:
-           print("String too short! Minimum is " + str(min) +
-                 " characters. Try again.")
-           continue
-        elif len(val) > max:
-           print("String too long! Limit is " + str(max) + 
-                 " characters. Try again")
-           continue
-
-        break;
-
-    return val
-
-
-def is_yes(in_val):
-    """Tests if the first character of a string == 'Y'"""
-
-    if in_val[:1] == 'Y':
-        return True
-    else:
-        return False
-
-
 def make_length(string, length):
     """Forces a string to be a certain length by either cutting or
     padding it"""
@@ -185,9 +142,10 @@ def get_formatted_time():
 
 def create_chart(shared_games, player_data):
     """Outputs a chart indicating which games are shared among which
-    players"""
+    players. Returns the name of the chart file."""
 
-    f = open(FILE_PATH + get_formatted_time() + '.txt', 'w')
+    file_name = get_formatted_time() + '.txt'
+    f = open(FILE_PATH + file_name, 'w')
 
     names_out = make_length("Game Title", TITLE_LENGTH) + ' +'
     separator_out = ('-' * (TITLE_LENGTH + 1)) + '+'
@@ -231,6 +189,7 @@ def create_chart(shared_games, player_data):
         str(len(master_games)) + " unique games!", file=f)
 
     f.close()
+    return file_name
 
 
 def find_common_games(player_data):
@@ -265,68 +224,90 @@ def find_common_games(player_data):
     return shared_games
 
 
-def attempt_skip(num_players, skipped, msg):
-    """Checks whether it is possible to skip over a player and continue
-    running the program. Fails if 1 or fewer players would remain."""
+def verify_steam_url_format(url):
+    """Verifies that a given URL is a valid  Steam Community profile URL.
+    If the URL has trailing information, it attempts to truncate it.
 
-    print(msg)
+    NOTE: This method does not actually check if the profiles exist, nor
+    does it check for invalid characters in the URL."""
 
-    if skipped >= num_players - 2:
-        print("Not enough players left to continue. Exiting...")
-        return False
+    # All possible input types that are accepted
+    formats = [ 'http://steamcommunity.com/profiles/',
+        'http://steamcommunity.com/id/',
+        'steamcommunity.com/profiles/',
+        'steamcommunity.com/id/' ]
+
+    # Does the given URL match any accepted formats?
+    for possible in formats:
+        # If the formats are found, they should be found at index 0
+        if url.find(possible) == 0:
+            # Find any extra slashes in the URL so that they can be removed
+            trailing_slash = url.find('/', len(possible))
+            break
     else:
-        return  is_yes(input(" Skip this player? (Y/N, N exits): ")[:1])
-        
+        raise MalformedSteamURL()
 
-def find_player_data(num_players):
+    # If it existed, truncate that extra / and anything following it
+    # Do this FIRST, it depends on an index that needs to stay accurate
+    if trailing_slash >= 0:
+        url = url[:trailing_slash]
+
+    # If it doesn't have the 'http://', it needs it
+    if url.find('http://') == -1:
+        url = 'http://' + url
+
+    return url
+
+
+def find_player_data():
     """Create a list to track players and their data. The end result will be a
     list of dictionaries. The dictionaries will contain the player's name and
     a set containing the appids of all games owned by the player."""
 
     player_data = []
-    skipped = 0
 
-    # Gather all the data for each player and handle exceptions
-    for i in range(0,num_players):
-        nick = handle_input_str("Provide a nickname for player " +
-            str(i+1) + " (under 9 characters): ", 1, NAME_LENGTH)
+    print("Enter the URLs of each Steam profile to be compared.")
+    print("(ex. 'http://steamcommunity.com/id/profilename' or " +
+        "'http://steamcommunity.com/profile/829839292863872')")
+    print("Return an empty field when finished.")
 
-        # Don't repeat the long instructions, they take up too much space
-        if i == 0:
-            url_chunk = handle_input_str(
-                "Enter the Steam Community URL segment for " + nick +
-                "\n(The starred value from either" +
-                "'http://steamcommunity.com/profiles/*****/' or" +
-                "'http://steamcommunity.com/id/*****/'): ", 1, 100)
-        else:
-            url_chunk = handle_input_str(
-                "Enter the Steam Community URL segment for " + nick +
-                ": ", 1, 100)
+    while True:
+        url = input('URL #' + str(len(player_data) + 1) + ': ')
 
+        # The user enters nothing, indicating that they are finished
+        if not url:
+            # We need to have two or more valid players to compare
+            if len(player_data) > 1:
+                break
+            else:
+                print("ERROR: Two or more players are required for comparison.")
+                continue
+
+        # Validate URL formatting
         try:
-            games = get_player_games(url_chunk)
+            url = verify_steam_url_format(url)
+        except MalformedSteamURL:
+            print("ERROR: URL format not valid/recognized!")
+            continue
+
+        # Validate profile and retrieve games
+        try:
+            name, games = get_player_and_games(url)
         except PrivateProfile:
-            # Skip the profile or exit if the profile is private
-            if attempt_skip(num_players, skipped, "The profile for " + nick +
-                " is private."):
+            print("ERROR: Profile appears to be private.")
+            continue
+        except MissingProfile:
+            print("ERROR: Profile not found (neither public nor private) or not recognized.")
+            continue
+        except FindNameError:
+            print("ERROR: Could not retrieve player's name.")
+            continue
+        except FindGamesError:
+            print("ERROR: Could not retrieve player's games.")
+            continue
 
-                skipped += 1
-                continue
-            else:
-                sys.exit()
-        except MissingProfile:	
-            # Skip the profile or exit if the profile is missing
-            if attempt_skip(num_players, skipped, "The profile for " + nick +
-                " cannot be found (not public or private). Maybe the URL was" +
-                " wrong."):
-
-                skipped += 1
-                continue
-            else:
-                sys.exit()
-
-        player_data.append( {'nick': nick, 'games': games } )
-        print('Successfully accessed profile for ' + nick + '.')
+        player_data.append( {'nick': name, 'games': games } )
+        print('Successfully accessed profile for ' + name  + '.')
 
     return player_data
 
@@ -335,11 +316,8 @@ def main():
 
     print("Welcome to the Steam Game Comparator!")
 
-    num_players = handle_input_int("Number of accounts to compare? (2-10): ",
-        2, MAX_PLAYERS)
-
     # Acquire data on the players
-    player_data = find_player_data(num_players)
+    player_data = find_player_data()
 
     # Determine which games are shared
     shared_games = find_common_games(player_data)
@@ -348,11 +326,13 @@ def main():
         # Maybe sort shared_games here?
 
         # Format and print out the results
-        create_chart(shared_games, player_data)
-        print("Results output to file.")
+        file_name = create_chart(shared_games, player_data)
+        print("The comparision chart has been output to 'output/" + file_name +
+            "'.")
     else:
         print("No games in common, despite owning " + len(master_games) +
             "games!")
+        print("No chart created.")
 
 
 if __name__ == '__main__':
