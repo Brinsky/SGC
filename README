@@ -7,6 +7,8 @@ Authored by Brinsky (GitHub username)
 Description:
 The SGC finds the overlap between the game collections of multiple Steam users. It also creates a nice chart to display this overlap.
 
+*Features that have been implemented so far*
+-Outputting charts to a text file
 
 Requirements:
 The SGC is implemented in Python 3 and requires the external beautifulsoup4 and httplib2 packages (both of which are available through pip!).
@@ -17,7 +19,6 @@ As my first serious python program, the SGC is fairly messy. Although it serves 
 
 *Features that would be nice*
 -Sorting of the games before outputting
--Outputting to a text file
 -Handling httplib2 exceptions cleanly
 -Somehow allow login to the Steam Community (in order to access certain private profiles of friends)
 -Allow for only mutliplayer games to be listed (possibly by using the appids to find and parse each game's store page)
