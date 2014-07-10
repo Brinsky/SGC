@@ -25,7 +25,6 @@ class MissingProfile(Exception):
 master_games = {}
 
 
-VERSION = 0.6
 MAX_PLAYERS = 10
 NAME_LENGTH = 8
 TITLE_LENGTH = 25
@@ -310,7 +309,7 @@ def find_player_data(num_players):
 
 def main():
 
-    print("Welcome to the Steam Game Comparator v" + str(VERSION) + "!")
+    print("Welcome to the Steam Game Comparator!")
 
     num_players = handle_input_int("Number of accounts to compare? (2-10): ",
         2, MAX_PLAYERS)
